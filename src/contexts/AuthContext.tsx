@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
 
     if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
+      const { error: profileError } = await (supabase as any).from('profiles').insert({
         id: data.user.id,
         name,
         coding_level: 0,
@@ -101,8 +101,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    console.log('signOut: Starting logout process');
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
+    console.log('signOut: Supabase signOut successful');
+    // Clear local state
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+    console.log('signOut: Local state cleared');
+    // Redirect to login page by reloading
+    console.log('signOut: Redirecting to origin:', window.location.origin);
+    window.location.href = window.location.origin;
   };
 
   const refreshProfile = async () => {

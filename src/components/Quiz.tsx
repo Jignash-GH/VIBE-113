@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Brain, Loader2 } from 'lucide-react';
 
 interface QuizAnswers {
@@ -12,7 +12,7 @@ interface QuizAnswers {
 }
 
 export function Quiz({ onComplete }: { onComplete: () => void }) {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswers>({
     coding_level_score: 0,
@@ -23,6 +23,7 @@ export function Quiz({ onComplete }: { onComplete: () => void }) {
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ category: string; analysis: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const questions = [
     {
@@ -87,45 +88,91 @@ export function Quiz({ onComplete }: { onComplete: () => void }) {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    console.log('Quiz: User object:', user);
+    setError(null);
+    
+    if (!user) {
+      console.error('Quiz: No user found');
+      setError('User not found. Please sign in again.');
+      return;
+    }
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-quiz`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(answers),
-        }
-      );
+      // Fallback: Calculate score locally if Edge Function fails
+      const totalScore =
+        answers.coding_level_score +
+        answers.coding_proficiency_score +
+        answers.decision_making_score +
+        (answers.cgpa / 10) * 3 + // Normalize CGPA (1-10) to 0-3 scale
+        answers.real_life_application_score;
 
-      const data = await response.json();
-
-      if (data.success) {
-        setResult({ category: data.category, analysis: data.analysis });
-
-        await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-learning-content`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ generate_initial: true }),
-          }
-        );
-
-        setTimeout(() => {
-          onComplete();
-        }, 3000);
+      const maxScore = 15; // 3+3+3+3+3 = 15 (all normalized to same scale)
+      const percent = Math.max(0, Math.min(100, (totalScore / maxScore) * 100));
+      
+      // Better categorization logic
+      let category: string;
+      if (percent <= 30) {
+        category = 'spoonfeeder'; // Beginner - needs structured guidance
+      } else if (percent <= 60) {
+        category = 'spoonfeeder'; // Still needs structured approach
+      } else {
+        category = 'well-idea'; // Advanced - can work independently
       }
+      
+      const analysisText = `Based on your scores, you're categorized as ${category === 'spoonfeeder' ? 'Structured Learning' : 'Advanced Track'} with ${percent.toFixed(1)}% overall proficiency.`;
+
+      // Try Edge Function first, fallback to local calculation
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        if (sessionData?.session?.access_token) {
+          const { data } = await supabase.functions.invoke('analyze-quiz', {
+            body: answers,
+            headers: {
+              Authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+          });
+
+          if (data?.success) {
+            setResult({ category: data.category, analysis: data.analysis });
+
+            await supabase.functions.invoke('generate-learning-content', {
+              body: { generate_initial: true },
+              headers: {
+                Authorization: `Bearer ${sessionData.session.access_token}`,
+              },
+            });
+
+            await refreshProfile();
+            onComplete();
+            return;
+          }
+        }
+      } catch (edgeFunctionError) {
+        console.warn('Edge Function failed, using fallback:', edgeFunctionError);
+      }
+
+      // Fallback: Update profile locally and proceed
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user) {
+        const { error: updateError } = await (supabase as any)
+          .from('profiles')
+          .update({ learning_level: category })
+          .eq('id', sessionData.session.user.id);
+        
+        if (updateError) {
+          console.warn('Failed to update profile locally:', updateError);
+        }
+      }
+
+      setResult({ category, analysis: analysisText });
+      await refreshProfile();
+      onComplete();
+      
     } catch (error) {
       console.error('Error submitting quiz:', error);
+      setError(`Error submitting quiz: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -176,6 +223,12 @@ export function Quiz({ onComplete }: { onComplete: () => void }) {
         </div>
 
         <h3 className="text-2xl font-bold text-gray-800 mb-6">{currentQ.question}</h3>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 font-medium">{error}</p>
+          </div>
+        )}
 
         {currentQ.type === 'number' ? (
           <div className="mb-8">

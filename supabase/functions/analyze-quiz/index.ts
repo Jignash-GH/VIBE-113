@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,10 +51,22 @@ Deno.serve(async (req: Request) => {
       quizData.coding_level_score +
       quizData.coding_proficiency_score +
       quizData.decision_making_score +
-      quizData.cgpa / 2 +
+      (quizData.cgpa / 10) * 3 + // Normalize CGPA (1-10) to 0-3 scale
       quizData.real_life_application_score;
 
-    const category = totalScore >= 15 ? 'well-idea' : 'spoonfeeder';
+    // Normalize to percentage (max: 3+3+3+3+3 = 15)
+    const maxScore = 15;
+    const percent = Math.max(0, Math.min(100, (totalScore / maxScore) * 100));
+    
+    // Better categorization logic
+    let category: string;
+    if (percent <= 30) {
+      category = 'spoonfeeder'; // Beginner - needs structured guidance
+    } else if (percent <= 60) {
+      category = 'spoonfeeder'; // Still needs structured approach
+    } else {
+      category = 'well-idea'; // Advanced - can work independently
+    }
 
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 
@@ -124,6 +136,10 @@ Provide a brief (2-3 sentences) personalized learning path recommendation for th
         category,
         total_score: totalScore,
         analysis: analysisText,
+        percent,
+        // Added for simpler client consumption
+        score: percent,
+        skill_level: category,
       }),
       {
         status: 200,

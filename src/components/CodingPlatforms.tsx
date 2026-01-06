@@ -36,7 +36,7 @@ export function CodingPlatforms() {
     const { data, error } = await supabase
       .from('coding_platforms')
       .select('*')
-      .eq('user_id', user?.id);
+      .eq('user_id', user!.id);
 
     if (!error && data) {
       setPlatforms(data);
@@ -44,7 +44,7 @@ export function CodingPlatforms() {
     setLoading(false);
   };
 
-  const generateGoal = (platform: 'codechef' | 'leetcode', starRating: number, division: string) => {
+  const generateGoal = (platform: 'codechef' | 'leetcode', starRating: number) => {
     if (platform === 'codechef') {
       if (starRating === 0) return 'Achieve 1-star rating';
       if (starRating < 3) return `Reach ${starRating + 1}-star rating`;
@@ -58,10 +58,10 @@ export function CodingPlatforms() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const goal = generateGoal(formData.platform, formData.star_rating, formData.current_division);
+    const goal = generateGoal(formData.platform, formData.star_rating);
 
     if (editMode) {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('coding_platforms')
         .update({
           username: formData.username,
@@ -79,8 +79,8 @@ export function CodingPlatforms() {
         resetForm();
       }
     } else {
-      const { error } = await supabase.from('coding_platforms').insert({
-        user_id: user?.id,
+      const { error } = await (supabase as any).from('coding_platforms').insert({
+        user_id: user!.id,
         platform: formData.platform,
         username: formData.username,
         contest_rank: formData.contest_rank,

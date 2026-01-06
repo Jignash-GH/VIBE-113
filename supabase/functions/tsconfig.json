@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2022", "deno.ns", "deno.unstable"],
+    "strict": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["deno.ns"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node"
+  },
+  "include": ["**/*.ts"]
+}

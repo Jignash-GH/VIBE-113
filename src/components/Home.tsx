@@ -4,7 +4,6 @@ import { LearningPath } from './LearningPath';
 import { CodingPlatforms } from './CodingPlatforms';
 import { Profile } from './Profile';
 import { BookOpen, Code, User, LogOut, GraduationCap } from 'lucide-react';
-import { HelpToggle } from './HelpToggle';
 import { Explain } from './Explain';
 
 type Tab = 'overview' | 'learning' | 'platforms' | 'profile';
@@ -14,7 +13,12 @@ export function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
   const handleSignOut = async () => {
-    await signOut();
+    try {
+      await signOut();
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   return (
@@ -74,7 +78,6 @@ export function Home() {
             </div>
 
             <div className="flex items-center space-x-4">
-              <HelpToggle />
               <div className="text-right">
                 <p className="text-sm font-semibold text-gray-800">{profile?.name}</p>
                 <p className="text-xs text-gray-600">

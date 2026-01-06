@@ -38,7 +38,7 @@ export function Profile() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('profiles')
         .update({
           name: formData.name,
